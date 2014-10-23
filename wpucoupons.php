@@ -4,7 +4,7 @@
 Plugin Name: WPU Coupons
 Plugin URI:
 Description: This plugin let you create coupons
-Version: 0.1
+Version: 0.2
 */
 
 class WPUCoupons
@@ -16,6 +16,10 @@ class WPUCoupons
         'coupon_name' => array(
             'label' => 'Nom public du coupon',
             'placeholder' => 'Ex: Frais de ports offerts',
+        ) ,
+        'coupon_message' => array(
+            'label' => 'Message affiché après validation',
+            'placeholder' => 'Ex: Les frais de ports seront déduits de votre facture.',
         ) ,
         'coupon_code' => array(
             'label' => 'Code coupon',
@@ -33,6 +37,9 @@ class WPUCoupons
         add_action('init', array(&$this,
             'create_posttype'
         ));
+        add_action('template_redirect', array(&$this,
+            'callback_ajax_promo'
+        ));
         if (is_admin()) {
             add_action('add_meta_boxes', array(&$this,
                 'add_metabox'
@@ -49,7 +56,9 @@ class WPUCoupons
 
     public function get_coupon($coupon_code = '') {
         $coupon_code = strtolower($coupon_code);
-        $return = false;
+        $return = array(
+            'hascoupon' => false
+        );
         $wpq_get_coupon = new WP_Query(array(
             'posts_per_page' => 1,
             'post_type' => $this->post_type,
@@ -63,7 +72,8 @@ class WPUCoupons
         ));
         if ($wpq_get_coupon->have_posts()) {
             $wpq_get_coupon->the_post();
-            $return = array();
+            $return['hascoupon'] = true;
+            $return['coupon_id'] = get_the_ID();
             foreach ($this->fields as $id => $field) {
                 $val = get_post_meta(get_the_ID() , $id, 1);;
                 if (isset($field['isnumeric']) && $field['isnumeric']) {
@@ -74,6 +84,18 @@ class WPUCoupons
         }
         wp_reset_postdata();
         return $return;
+    }
+
+    public function callback_ajax_promo() {
+        if (empty($_POST)) {
+            return;
+        }
+
+        if (isset($_POST['wpu_coupon_id'])) {
+            $val = $this->get_coupon($_POST['wpu_coupon_id']);
+            echo json_encode($val);
+            die;
+        }
     }
 
     /* ----------------------------------------------------------
